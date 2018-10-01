@@ -142,6 +142,22 @@ static int prefix_ref_iterator_peel(struct ref_iterator *ref_iterator,
 	return ref_iterator_peel(iter->iter0, peeled);
 }
 
+struct ref_dir *get_ref_dir(struct ref_entry *entry)
+{
+	struct ref_dir *dir;
+	assert(entry->flag & REF_DIR);
+	dir = &entry->u.subdir;
+	if (entry->flag & REF_INCOMPLETE) {
+		if (!dir->cache->fill_ref_dir)
+			BUG("incomplete ref_store without fill_ref_dir function");
+
+		dir->cache->fill_ref_dir(dir->cache->ref_store, dir, entry->name);
+		entry->flag &= ~REF_INCOMPLETE;
+	}
+	return dir;
+}
+
+
 static int prefix_ref_iterator_abort(struct ref_iterator *ref_iterator)
 {
 	struct prefix_ref_iterator *iter =
@@ -161,27 +177,6 @@ static struct ref_iterator_vtable prefix_ref_iterator_vtable = {
 	prefix_ref_iterator_abort
 };
 
-struct ref_iterator *prefix_ref_iterator_begin(struct ref_iterator *iter0,
-					       const char *prefix,
-					       int trim)
-{
-	struct prefix_ref_iterator *iter;
-	struct ref_iterator *ref_iterator;
-
-	if (!*prefix && !trim)
-		return iter0; /* optimization: no need to wrap iterator */
-
-	iter = xcalloc(1, sizeof(*iter));
-	ref_iterator = &iter->base;
-
-	base_ref_iterator_init(ref_iterator, &prefix_ref_iterator_vtable, iter0->ordered);
-
-	iter->iter0 = iter0;
-	iter->prefix = xstrdup(prefix);
-	iter->trim = trim;
-
-	return ref_iterator;
-}
 
 struct ref_iterator *current_ref_iter = NULL;
 
